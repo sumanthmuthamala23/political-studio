@@ -7,7 +7,7 @@ import base64
 
 st.set_page_config(page_title="BRS Media Studio - Tata Madhusudhan MLC", layout="wide", page_icon="🌸")
 
-# Colors
+# Brand colors
 BRS_PINK = "#E5007D"
 BRS_DARK = "#99004F"
 GOLD_COLOR = "#FFD700"
@@ -32,6 +32,29 @@ def make_circular_image(img, size=(160, 160), border_color="#FFD700", border_wid
     )
     return output
 
+def auto_clean_portrait_bg(img, tolerance=35):
+    """Erases smooth studio backdrop cleanly without downloading heavy 1GB models"""
+    img = img.convert("RGBA")
+    datas = img.getdata()
+    # Sample corner backdrop color
+    corner_pixel = datas[0]
+    
+    newData = []
+    for item in datas:
+        # Check difference from backdrop color
+        diff = abs(item[0] - corner_pixel[0]) + abs(item[1] - corner_pixel[1]) + abs(item[2] - corner_pixel[2])
+        if diff < tolerance:
+            newData.append((255, 255, 255, 0))
+        elif diff < tolerance + 25:
+            # Soft edge blending
+            alpha = int(255 * ((diff - tolerance) / 25))
+            newData.append((item[0], item[1], item[2], alpha))
+        else:
+            newData.append(item)
+            
+    img.putdata(newData)
+    return img
+
 LEADER_FALLBACKS = {
     "kcr": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/K._Chandrashekar_Rao_in_2023.jpg/360px-K._Chandrashekar_Rao_in_2023.jpg",
     "ktr": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/K._T._Rama_Rao_in_2023.jpg/360px-K._T._Rama_Rao_in_2023.jpg",
@@ -45,12 +68,11 @@ def load_leader_image(uploaded_file, fallback_key):
         res = requests.get(LEADER_FALLBACKS[fallback_key], timeout=5)
         return Image.open(BytesIO(res.content))
     except Exception:
-        dummy = Image.new("RGBA", (180, 180), (229, 0, 125, 255))
-        return dummy
+        return Image.new("RGBA", (180, 180), (229, 0, 125, 255))
 
 st.sidebar.title("BRS Media Studio")
 st.sidebar.markdown("**Sri Tata Madhusudhan Garu (MLC)**")
-st.sidebar.caption("Khammam District BRS Graphic Creator")
+st.sidebar.caption("Khammam District BRS Graphic & Reel Creator")
 
 mode = st.sidebar.radio("Select Creation Mode:", ["Poster Studio", "Video Reel Mixer"])
 
@@ -66,17 +88,17 @@ if mode == "Poster Studio":
     with col1:
         st.subheader("1. Leader Photographs")
         tata_file = st.file_uploader("Upload Sri Tata Madhusudhan Photo", type=["png", "jpg", "jpeg"])
-        erase_bg = st.checkbox("Auto-erase photo background (clean cutout)", value=True)
+        erase_bg = st.checkbox("Auto-clean studio background (Cutout subject cleanly)", value=True)
         
         with st.expander("Top Leadership Custom Overlays (Optional)"):
             kcr_file = st.file_uploader("Custom KCR Photo (Top-Left)", type=["png", "jpg"])
             ktr_file = st.file_uploader("Custom KTR Photo (Top-Right)", type=["png", "jpg"])
             harish_file = st.file_uploader("Custom Harish Rao Photo (Top-Right)", type=["png", "jpg"])
-            custom_bg = st.file_uploader("Custom Background (Optional)", type=["png", "jpg"])
+            custom_bg = st.file_uploader("Custom Poster Background (Optional)", type=["png", "jpg"])
 
         st.subheader("2. Telugu Poster Typography (Editable)")
         heading_text = st.text_input("Main Telugu Heading:", value="హృదయపూర్వక జన్మదిన శుభాకాంక్షలు")
-        sub_text = st.text_area("Telugu Description / Slogan:", value="తెలంగాణ ఉద్యమ నాయకుడు, నిరంతరం ప్రజాసేవలో ముందంజ వేస్తూ, ఉమ్మడి ఖమ్మం జిల్లా ప్రజల ఆశాజ్యోతి.")
+        sub_text = st.text_area("Telugu Description / Slogan:", value="తెలంగాణ ఉద్యమ నాయకుడు, నిరంతరం ప్రజాసేవలో ముందంజ వేస్తూ, ఉమ్మడి ఖమ్మం జిల్లా ప్రజల ఆశాజ్యోతి గౌరవ శాసనమండలి సభ్యులు.")
         leader_name = st.text_input("Designation Ribbon:", value="శ్రీ తాతా మధుసూదన్ గారు, MLC")
         district_name = st.text_input("Sub-Designation:", value="బీఆర్ఎస్ పార్టీ జిల్లా అధ్యక్షులు, ఖమ్మం")
         greeting_text = st.text_input("Footer Greeting:", value="శుభాకాంక్షలతో: బీఆర్ఎస్ పార్టీ శ్రేణులు, ఉమ్మడి ఖమ్మం జిల్లా")
@@ -87,10 +109,10 @@ if mode == "Poster Studio":
             if not tata_file:
                 st.warning("Please upload Sri Tata Madhusudhan Garu's photo.")
             else:
-                with st.spinner("Processing background removal and layout rendering..."):
+                with st.spinner("Compositing poster layout..."):
                     W, H = 1080, 1440
                     
-                    # 1. Create Base Canvas
+                    # Canvas background
                     if custom_bg:
                         canvas = Image.open(custom_bg).convert("RGBA").resize((W, H))
                     else:
@@ -103,7 +125,7 @@ if mode == "Poster Studio":
                             b = int(105 - (ratio * 80))
                             draw_bg.line([(0, y), (W, y)], fill=(r, g, b, 255))
                             
-                        # Ambient Golden Flare
+                        # Ambient Golden Flare Glow
                         flare = Image.new("RGBA", (650, 650), (255, 215, 0, 35))
                         f_mask = Image.new("L", (650, 650), 0)
                         ImageDraw.Draw(f_mask).ellipse((50, 50, 600, 600), fill=255)
@@ -111,14 +133,14 @@ if mode == "Poster Studio":
                         flare.putalpha(f_mask)
                         canvas.paste(flare, (W//2 - 325, H//2 - 250), flare)
 
-                    # 2. Header Bar
+                    # Top Header Ribbon
                     header = Image.new("RGBA", (W, 230), (0, 0, 0, 0))
                     d_hdr = ImageDraw.Draw(header)
                     d_hdr.rectangle([0, 0, W, 215], fill=(229, 0, 125, 240))
                     d_hdr.rectangle([0, 215, W, 222], fill=(255, 215, 0, 255))
                     canvas.paste(header, (0, 0), header)
 
-                    # 3. Top Badges
+                    # Top Leadership Badges
                     img_kcr = load_leader_image(kcr_file, "kcr")
                     kcr_badge = make_circular_image(img_kcr, size=(175, 175), border_color="#FFD700", border_width=5)
                     canvas.paste(kcr_badge, (35, 20), kcr_badge)
@@ -131,25 +153,23 @@ if mode == "Poster Studio":
                     harish_badge = make_circular_image(img_harish, size=(150, 150), border_color="#FFFFFF", border_width=4)
                     canvas.paste(harish_badge, (W - 165, 30), harish_badge)
 
-                    # 4. Background Erasing for Tata Madhusudhan Garu
+                    # Main Portrait: Sri Tata Madhusudhan Garu
                     raw_subj = Image.open(tata_file).convert("RGBA")
                     if erase_bg:
-                        try:
-                            from rembg import remove
-                            subj = remove(raw_subj)
-                        except Exception:
-                            subj = raw_subj
+                        subj = auto_clean_portrait_bg(raw_subj)
                     else:
                         subj = raw_subj
 
                     subj.thumbnail((780, 1050), Image.Resampling.LANCZOS)
                     sw, sh = subj.size
 
-                    # Drop Shadow
-                    shadow_mask = subj.split()[3].filter(ImageFilter.GaussianBlur(25))
-                    shadow_layer = Image.new("RGBA", (sw, sh), (0, 0, 0, 190))
-                    shadow_layer.putalpha(shadow_mask)
-                    canvas.paste(shadow_layer, (W - sw - 10, H - sh - 220), shadow_layer)
+                    # Soft drop shadow
+                    if "A" in subj.getbands():
+                        shadow_mask = subj.split()[3].filter(ImageFilter.GaussianBlur(25))
+                        shadow_layer = Image.new("RGBA", (sw, sh), (0, 0, 0, 190))
+                        shadow_layer.putalpha(shadow_mask)
+                        canvas.paste(shadow_layer, (W - sw - 10, H - sh - 220), shadow_layer)
+
                     canvas.paste(subj, (W - sw - 20, H - sh - 230), subj)
 
                     temp_base = "temp_poster_base.png"
@@ -158,114 +178,45 @@ if mode == "Poster Studio":
                     with open(temp_base, "rb") as img_f:
                         b64_base = base64.b64encode(img_f.read()).decode("utf-8")
 
-                    # 5. HTML5 Layout with Verified Anek Telugu Font
-                    css_styles = """
-                    <style>
-                        @import url('https://fonts.googleapis.com/css2?family=Anek+Telugu:wght@400;600;700;800&display=swap');
-                        .poster-wrap {
-                            position: relative;
-                            width: 100%;
-                            max-width: 600px;
-                            margin: 0 auto;
-                            box-shadow: 0 20px 45px rgba(0,0,0,0.6);
-                            border-radius: 14px;
-                            overflow: hidden;
-                            background: #000;
-                            font-family: 'Anek Telugu', sans-serif;
-                        }
-                        .poster-bg {
-                            width: 100%;
-                            display: block;
-                        }
-                        .top-party-title {
-                            position: absolute;
-                            top: 6.8%;
-                            left: 50%;
-                            transform: translate(-50%, -50%);
-                            font-size: 24px;
-                            color: #FFFFFF;
-                            font-weight: 800;
-                            text-shadow: 0 2px 4px rgba(0,0,0,0.6);
-                            white-space: nowrap;
-                        }
-                        .text-content-zone {
-                            position: absolute;
-                            top: 22%;
-                            left: 6%;
-                            width: 50%;
-                            text-shadow: 0 3px 6px rgba(0,0,0,0.9);
-                        }
-                        .main-title-text {
-                            font-size: 26px;
-                            font-weight: 800;
-                            color: #FFD700;
-                            line-height: 1.3;
-                            margin-bottom: 10px;
-                        }
-                        .body-desc-text {
-                            font-size: 15px;
-                            font-weight: 600;
-                            color: #FFFFFF;
-                            line-height: 1.4;
-                        }
-                        .bottom-ribbon {
-                            position: absolute;
-                            bottom: 0;
-                            left: 0;
-                            width: 100%;
-                            background: linear-gradient(180deg, #E5007D 0%, #8C0048 100%);
-                            border-top: 4px solid #FFD700;
-                            padding: 12px 10px 10px 10px;
-                            text-align: center;
-                            box-sizing: border-box;
-                        }
-                        .ribbon-name {
-                            font-size: 24px;
-                            font-weight: 800;
-                            color: #FFD700;
-                            margin: 0;
-                        }
-                        .ribbon-district {
-                            font-size: 14px;
-                            font-weight: 600;
-                            color: #FFFFFF;
-                            margin-top: 2px;
-                        }
-                        .ribbon-greeting {
-                            font-size: 13px;
-                            font-weight: 500;
-                            color: #FFE6F2;
-                            margin-top: 6px;
-                            border-top: 1px solid rgba(255,255,255,0.25);
-                            padding-top: 4px;
-                        }
-                    </style>
-                    """
+                    css_block = (
+                        "<style>"
+                        "@import url('https://fonts.googleapis.com/css2?family=Anek+Telugu:wght@400;600;700;800&display=swap');"
+                        ".poster-wrap { position: relative; width: 100%; max-width: 600px; margin: 0 auto; box-shadow: 0 20px 45px rgba(0,0,0,0.6); border-radius: 14px; overflow: hidden; background: #000; font-family: 'Anek Telugu', sans-serif; }"
+                        ".poster-bg { width: 100%; display: block; }"
+                        ".top-party-title { position: absolute; top: 6.8%; left: 50%; transform: translate(-50%, -50%); font-size: 24px; color: #FFFFFF; font-weight: 800; text-shadow: 0 2px 4px rgba(0,0,0,0.6); white-space: nowrap; }"
+                        ".text-content-zone { position: absolute; top: 22%; left: 6%; width: 50%; text-shadow: 0 3px 6px rgba(0,0,0,0.9); }"
+                        ".main-title-text { font-size: 26px; font-weight: 800; color: #FFD700; line-height: 1.3; margin-bottom: 10px; }"
+                        ".body-desc-text { font-size: 15px; font-weight: 600; color: #FFFFFF; line-height: 1.4; }"
+                        ".bottom-ribbon { position: absolute; bottom: 0; left: 0; width: 100%; background: linear-gradient(180deg, #E5007D 0%, #8C0048 100%); border-top: 4px solid #FFD700; padding: 12px 10px 10px 10px; text-align: center; box-sizing: border-box; }"
+                        ".ribbon-name { font-size: 24px; font-weight: 800; color: #FFD700; margin: 0; }"
+                        ".ribbon-district { font-size: 14px; font-weight: 600; color: #FFFFFF; margin-top: 2px; }"
+                        ".ribbon-greeting { font-size: 13px; font-weight: 500; color: #FFE6F2; margin-top: 6px; border-top: 1px solid rgba(255,255,255,0.25); padding-top: 4px; }"
+                        "</style>"
+                    )
 
-                    card_html = f"""
-                    {css_styles}
-                    <div class="poster-wrap">
-                        <img src="data:image/png;base64,{b64_base}" class="poster-bg" />
-                        <div class="top-party-title">భారత రాష్ట్ర సమితి (BRS)</div>
-                        <div class="text-content-zone">
-                            <div class="main-title-text">{heading_text}</div>
-                            <div class="body-desc-text">{sub_text}</div>
-                        </div>
-                        <div class="bottom-ribbon">
-                            <div class="ribbon-name">{leader_name}</div>
-                            <div class="ribbon-district">{district_name}</div>
-                            <div class="ribbon-greeting">{greeting_text}</div>
-                        </div>
-                    </div>
-                    """
+                    body_html = (
+                        f"{css_block}"
+                        f"<div class='poster-wrap'>"
+                        f"<img src='data:image/png;base64,{b64_base}' class='poster-bg' />"
+                        f"<div class='top-party-title'>భారత రాష్ట్ర సమితి (BRS)</div>"
+                        f"<div class='text-content-zone'>"
+                        f"<div class='main-title-text'>{heading_text}</div>"
+                        f"<div class='body-desc-text'>{sub_text}</div>"
+                        f"</div>"
+                        f"<div class='bottom-ribbon'>"
+                        f"<div class='ribbon-name'>{leader_name}</div>"
+                        f"<div class='ribbon-district'>{district_name}</div>"
+                        f"<div class='ribbon-greeting'>{greeting_text}</div>"
+                        f"</div></div>"
+                    )
 
-                    st.markdown(card_html, unsafe_allow_html=True)
+                    st.markdown(body_html, unsafe_allow_html=True)
                     
                     with open(temp_base, "rb") as f:
                         st.download_button("Download High-Resolution Base Poster", f, "tata_madhusudhan_poster.png", "image/png")
 
 # ========================================================
-# 2. VIDEO REELS MIXER
+# 2. VIDEO REELS MIXER (10 Video + 10 Photo Slots)
 # ========================================================
 elif mode == "Video Reel Mixer":
     st.header("10-Slot Video & Photo Reel Mixer")
