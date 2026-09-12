@@ -3,10 +3,11 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 import os
 import requests
 from io import BytesIO
+from moviepy.editor import VideoFileClip, ImageClip, AudioFileClip, concatenate_videoclips
 
 st.set_page_config(page_title="BRS Media Studio - Tata Madhusudhan MLC", layout="wide", page_icon="🌸")
 
-# Fetch official Telugu Unicode Font (Suranna)
+# Download verified Telugu Font
 FONT_URL = "https://github.com/google/fonts/raw/main/ofl/suranna/Suranna-Regular.ttf"
 FONT_PATH = "Suranna-Telugu.ttf"
 if not os.path.exists(FONT_PATH):
@@ -61,7 +62,6 @@ def load_or_fetch(uploaded_file, fallback_key):
         d.text((100, 100), fallback_key.upper(), fill=WHITE, anchor="mm")
         return fallback_img
 
-# App Navigation
 st.sidebar.title("BRS Media Studio")
 st.sidebar.markdown("**Sri Tata Madhusudhan Garu (MLC)**")
 st.sidebar.caption("Khammam District BRS Media Generator")
@@ -79,8 +79,7 @@ if mode == "Poster Studio":
     
     with col1:
         st.subheader("1. Leader Photographs")
-        tata_file = st.file_uploader("Upload Sri Tata Madhusudhan Photo (Main Subject)", type=["png", "jpg", "jpeg"])
-        cutout_tata = st.checkbox("Auto-remove background from Tata Madhusudhan photo", value=True)
+        tata_file = st.file_uploader("Upload Sri Tata Madhusudhan Photo (PNG cutout or portrait)", type=["png", "jpg", "jpeg"])
         
         with st.expander("Top Leaders Custom Overlays (Optional - Defaults auto-loaded)"):
             kcr_file = st.file_uploader("Custom KCR Photo (Top-Left)", type=["png", "jpg"])
@@ -92,7 +91,7 @@ if mode == "Poster Studio":
         telugu_heading = st.text_input("Main Telugu Heading:", value="హృదయపూర్వక శుభాకాంక్షలు")
         telugu_body = st.text_area("Telugu Description / Message:", value="తెలంగాణ ఉద్యమ నాయకుడు, ఖమ్మం జిల్లా బీఆర్ఎస్ పార్టీ అధ్యక్షులు, గౌరవ శాసనమండలి సభ్యులు (MLC)")
         telugu_leader_name = st.text_input("Main Designation Strip:", value="శ్రీ తాతా మధుసూదన్ గారు, MLC")
-        telugu_greetings = st.text_input("Greetings Strip (Footer):", value="భారత రాష్ట్ర సమితి (BRS) శ్రేణులు, ఖమ్మం జిల్లా")
+        telugu_greetings = st.text_input("Greetings Strip (Footer):", value="భారత రాష్ట్ర సమితి (BRS) పార్టీ శ్రేణులు, ఖమ్మం జిల్లా")
 
     with col2:
         st.subheader("3. Live Poster Preview & Export")
@@ -100,6 +99,7 @@ if mode == "Poster Studio":
             with st.spinner("Rendering poster with high-resolution typography..."):
                 W, H = 1080, 1440
                 
+                # Canvas background
                 if bg_file:
                     poster = Image.open(bg_file).convert("RGBA").resize((W, H))
                 else:
@@ -142,21 +142,14 @@ if mode == "Poster Studio":
                 harish_badge = make_circular_image(img_harish, size=(150, 150), border_color=WHITE, border_width=4)
                 poster.paste(harish_badge, (W - 165, 30), harish_badge)
 
-                # Tata Madhusudhan Main Portrait
+                # Sri Tata Madhusudhan Main Portrait
                 if tata_file is not None:
                     tata_img = Image.open(tata_file).convert("RGBA")
-                    if cutout_tata:
-                        try:
-                            from rembg import remove
-                            tata_img = remove(tata_img)
-                        except Exception as e:
-                            st.warning("Auto background removal skipped; using original photo.")
-                    
                     tata_img.thumbnail((720, 950), Image.Resampling.LANCZOS)
                     tw, th = tata_img.size
                     poster.paste(tata_img, (W - tw - 30, H - th - 210), tata_img)
 
-                # Telugu Content Typography
+                # Telugu Typography Content
                 draw.text((60, 260), telugu_heading, fill=BRS_DARK_PINK, font=font_heading)
 
                 words = telugu_body.split()
@@ -173,7 +166,7 @@ if mode == "Poster Studio":
                 if line:
                     draw.text((60, curr_y), line, fill=BLACK, font=font_sub)
 
-                # Bottom Designation Ribbon
+                # Bottom Designation & Greeting Ribbon
                 draw.rectangle([0, H - 210, W, H], fill=BRS_PINK)
                 draw.rectangle([0, H - 215, W, H - 210], fill=GOLD)
                 
@@ -193,7 +186,7 @@ if mode == "Poster Studio":
                     )
 
 # ========================================================
-# 2. VIDEO REELS MIXER
+# 2. VIDEO REELS MIXER (10 Video + 10 Photo Slots)
 # ========================================================
 elif mode == "Video Reel Mixer":
     st.header("10-Slot Video & Photo Reel Mixer")
@@ -230,8 +223,6 @@ elif mode == "Video Reel Mixer":
             st.error("Please upload at least one video or photo to mix.")
         else:
             with st.spinner("Processing media tracks and stitching reel..."):
-                from moviepy.editor import VideoFileClip, ImageClip, AudioFileClip, concatenate_videoclips
-
                 clips = []
 
                 for idx, v_item in enumerate(video_uploads):
