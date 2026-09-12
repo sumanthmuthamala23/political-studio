@@ -3,12 +3,10 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 import os
 import requests
 from io import BytesIO
-from moviepy.editor import VideoFileClip, ImageClip, AudioFileClip, concatenate_videoclips
-from rembg import remove
 
 st.set_page_config(page_title="BRS Media Studio - Tata Madhusudhan MLC", layout="wide", page_icon="🌸")
 
-# Fetch official Unicode Telugu Font for error-free script shaping
+# Fetch official Telugu Unicode Font (Suranna)
 FONT_URL = "https://github.com/google/fonts/raw/main/ofl/suranna/Suranna-Regular.ttf"
 FONT_PATH = "Suranna-Telugu.ttf"
 if not os.path.exists(FONT_PATH):
@@ -63,6 +61,7 @@ def load_or_fetch(uploaded_file, fallback_key):
         d.text((100, 100), fallback_key.upper(), fill=WHITE, anchor="mm")
         return fallback_img
 
+# App Navigation
 st.sidebar.title("BRS Media Studio")
 st.sidebar.markdown("**Sri Tata Madhusudhan Garu (MLC)**")
 st.sidebar.caption("Khammam District BRS Media Generator")
@@ -119,7 +118,15 @@ if mode == "Poster Studio":
                 draw.rectangle([0, 0, W, 210], fill=BRS_PINK)
                 draw.rectangle([0, 205, W, 212], fill=GOLD)
                 
-                font_top = ImageFont.truetype(FONT_PATH, 52)
+                try:
+                    font_top = ImageFont.truetype(FONT_PATH, 52)
+                    font_heading = ImageFont.truetype(FONT_PATH, 50)
+                    font_sub = ImageFont.truetype(FONT_PATH, 32)
+                    font_name = ImageFont.truetype(FONT_PATH, 48)
+                    font_footer = ImageFont.truetype(FONT_PATH, 34)
+                except Exception:
+                    font_top = font_heading = font_sub = font_name = font_footer = ImageFont.load_default()
+
                 draw.text((W // 2, 105), "భారత రాష్ట్ర సమితి (BRS)", fill=WHITE, font=font_top, anchor="mm")
 
                 # Top Leaders Badges
@@ -139,18 +146,17 @@ if mode == "Poster Studio":
                 if tata_file is not None:
                     tata_img = Image.open(tata_file).convert("RGBA")
                     if cutout_tata:
-                        tata_img = remove(tata_img)
+                        try:
+                            from rembg import remove
+                            tata_img = remove(tata_img)
+                        except Exception as e:
+                            st.warning("Auto background removal skipped; using original photo.")
                     
                     tata_img.thumbnail((720, 950), Image.Resampling.LANCZOS)
                     tw, th = tata_img.size
                     poster.paste(tata_img, (W - tw - 30, H - th - 210), tata_img)
 
                 # Telugu Content Typography
-                font_heading = ImageFont.truetype(FONT_PATH, 50)
-                font_sub = ImageFont.truetype(FONT_PATH, 32)
-                font_name = ImageFont.truetype(FONT_PATH, 48)
-                font_footer = ImageFont.truetype(FONT_PATH, 34)
-
                 draw.text((60, 260), telugu_heading, fill=BRS_DARK_PINK, font=font_heading)
 
                 words = telugu_body.split()
@@ -187,7 +193,7 @@ if mode == "Poster Studio":
                     )
 
 # ========================================================
-# 2. VIDEO REELS MIXER (10 Video + 10 Photo Slots)
+# 2. VIDEO REELS MIXER
 # ========================================================
 elif mode == "Video Reel Mixer":
     st.header("10-Slot Video & Photo Reel Mixer")
@@ -224,6 +230,8 @@ elif mode == "Video Reel Mixer":
             st.error("Please upload at least one video or photo to mix.")
         else:
             with st.spinner("Processing media tracks and stitching reel..."):
+                from moviepy.editor import VideoFileClip, ImageClip, AudioFileClip, concatenate_videoclips
+
                 clips = []
 
                 for idx, v_item in enumerate(video_uploads):
